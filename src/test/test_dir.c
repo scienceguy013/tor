@@ -1391,6 +1391,74 @@ test_dir_v3_networkstatus(void)
   if (dsig2)
     ns_detached_signatures_free(dsig2);
 }
+static void 
+test_dir_possible_sybil_list(void *testdata)
+{
+  smartlist_t *sl = smartlist_new();
+  digestmap_t *omit_as_sybil = NULL;
+
+  routerinfo_t *r1 = NULL, *r2 = NULL, *r3 = NULL, *r4 = NULL, *r5=NULL, *r6=NULL;
+  routerinfo_t *r_sybil = NULL;
+
+  r1 = tor_malloc_zero(sizeof(routerinfo_t));
+  r2 = tor_malloc_zero(sizeof(routerinfo_t));
+  r3 = tor_malloc_zero(sizeof(routerinfo_t));
+
+  r1->addr = 0xc0a80001u; /* 192.168.0.1 */
+  r2->addr = 0xc0a80001u; /* 192.168.0.1 */
+  r3->addr = 0xc0a80001u; /* 192.168.0.1 */
+
+  memcpy(r1->cache_info.identity_digest, "1", DIGEST_LEN);
+  memcpy(r2->cache_info.identity_digest, "2", DIGEST_LEN);
+  memcpy(r3->cache_info.identity_digest, "3", DIGEST_LEN);
+
+  smartlist_add(sl, r1);
+  smartlist_add(sl, r2);
+  smartlist_add(sl, r3);
+
+  /* unless trusted  allow two Tor servers on a single ipv4 address*/
+  omit_as_sybil = get_possible_sybil_list(sl);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r1->cache_info.identity_digest) == NULL)
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r2->cache_info.identity_digest) == NULL)
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r3->cache_info.identity_digest) != NULL)
+
+  r_sybil = (routerinfo_t*)digestmap_get(omit_as_sybil,r3->cache_info.identity_digest);
+  tt_str_op(r_sybil->cache_info.identity_digest, ==, r3->cache_info.identity_digest);
+
+  r4 = tor_malloc_zero(sizeof(routerinfo_t));
+  r5 = tor_malloc_zero(sizeof(routerinfo_t));
+  r6 = tor_malloc_zero(sizeof(routerinfo_t));
+
+  memcpy(r4->cache_info.identity_digest, "4", DIGEST_LEN);
+  memcpy(r5->cache_info.identity_digest, "5", DIGEST_LEN);
+  memcpy(r6->cache_info.identity_digest, "6", DIGEST_LEN);
+
+  smartlist_add(sl, r4);
+  smartlist_add(sl, r5);
+  smartlist_add(sl, r6);
+
+  /* Allow 5 trusted Tor servers on a single ipv4 address */
+  SMARTLIST_FOREACH_BEGIN(sl, routerinfo_t *, ri){
+    ri->addr = 0x801f0027u; /* 128.31.0.39 */
+  } SMARTLIST_FOREACH_END(ri);
+
+  omit_as_sybil = get_possible_sybil_list(sl);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r1->cache_info.identity_digest) == NULL);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r2->cache_info.identity_digest) == NULL);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r3->cache_info.identity_digest) == NULL);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r4->cache_info.identity_digest) == NULL);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r5->cache_info.identity_digest) == NULL);
+  tt_assert((routerinfo_t*)digestmap_get(omit_as_sybil,r6->cache_info.identity_digest) != NULL);
+
+  r_sybil = (routerinfo_t*)digestmap_get(omit_as_sybil,r6->cache_info.identity_digest);
+  tt_str_op(r_sybil->cache_info.identity_digest, ==, r6->cache_info.identity_digest);
+  done:
+    SMARTLIST_FOREACH_BEGIN(sl, routerinfo_t *, ri){
+      routerinfo_free(ri);
+    } SMARTLIST_FOREACH_END(ri);
+    smartlist_free(sl);
+    
+}
 
 static void
 test_dir_scale_bw(void *testdata)
@@ -1527,6 +1595,7 @@ struct testcase_t dir_tests[] = {
   DIR_LEGACY(v3_networkstatus),
   DIR(random_weighted),
   DIR(scale_bw),
+  DIR(possible_sybil_list),
   END_OF_TESTCASES
 };
 

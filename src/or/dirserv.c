@@ -2317,7 +2317,7 @@ compare_routerinfo_by_ip_and_bw_(const void **a, const void **b)
 /** Given a list of routerinfo_t in <b>routers</b>, return a new digestmap_t
  * whose keys are the identity digests of those routers that we're going to
  * exclude for Sybil-like appearance. */
-static digestmap_t *
+digestmap_t *
 get_possible_sybil_list(const smartlist_t *routers)
 {
   const or_options_t *options = get_options();
